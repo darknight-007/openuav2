@@ -1,0 +1,113 @@
+FROM openuav:ros-cuda-11.4.2-base-ubuntu20.04
+
+# Install additional dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ninja-build \
+    exiftool \
+    protobuf-compiler \
+    libopencv-dev \
+    python3-setuptools \
+    python3-pip \
+    python3-numpy \
+    python3-empy \
+    python3-toml \
+    python3-packaging \
+    python3-jinja2 \
+    python3-coverage \
+    python3-argcomplete \
+    python3-cerberus \
+    python3-jsonschema \
+    python3-mock \
+    python3-nose \
+    python3-pytest \
+    python3-pytest-cov \
+    python3-requests \
+    python3-serial \
+    python3-six \
+    python3-wheel \
+    python3-yaml \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    libgstreamer-plugins-good1.0-dev \
+    lubuntu-desktop \
+    terminator \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install TurboVNC and VirtualGL
+RUN wget https://sourceforge.net/projects/turbovnc/files/3.0.3/turbovnc_3.0.3_amd64.deb && \
+    wget https://sourceforge.net/projects/virtualgl/files/3.1/virtualgl_3.1_amd64.deb && \
+    apt-get update && \
+    apt-get install -y ./turbovnc_3.0.3_amd64.deb ./virtualgl_3.1_amd64.deb && \
+    rm turbovnc_3.0.3_amd64.deb virtualgl_3.1_amd64.deb && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install noVNC
+RUN git clone https://github.com/novnc/noVNC.git /opt/novnc && \
+    git clone https://github.com/novnc/websockify /opt/novnc/utils/websockify && \
+    ln -s /opt/novnc/vnc.html /opt/novnc/index.html
+
+# Install Python packages
+RUN pip3 install --no-cache-dir \
+    kconfiglib \
+    jsonschema \
+    numpy \
+    toml \
+    pyros-genmsg \
+    packaging \
+    jinja2 \
+    cerberus \
+    pyserial \
+    pyulog \
+    numpy \
+    coverage \
+    mock \
+    nose \
+    pytest \
+    pytest-cov \
+    requests \
+    six \
+    wheel \
+    pyyaml \
+    future
+
+# Clone and build PX4
+RUN mkdir -p /root/src && \
+    cd /root/src && \
+    git clone --recursive https://github.com/PX4/PX4-Autopilot.git && \
+    cd PX4-Autopilot && \
+    git checkout v1.13.3 && \
+    git submodule update --init --recursive && \
+    make px4_sitl_default gazebo
+
+# Set environment variables
+ENV PX4_HOME_LAT=47.641468
+ENV PX4_HOME_LON=-122.140165
+ENV PX4_HOME_ALT=0.0
+
+# Set up VNC configuration
+RUN mkdir -p /root/.vnc && \
+    echo '#!/bin/bash\nxrdb $HOME/.Xresources\nlxqt-session &' > /root/.vnc/xstartup && \
+    chmod +x /root/.vnc/xstartup
+
+# Create launch script
+COPY scripts/launch_px4_sitl.sh /root/
+RUN chmod +x /root/launch_px4_sitl.sh
+
+# Create desktop launcher for Terminator
+RUN mkdir -p /root/Desktop && \
+    echo '[Desktop Entry]\nVersion=1.0\nType=Application\nName=Terminator\nComment=Multiple terminals in one window\nExec=terminator\nIcon=terminator\nCategories=GNOME;GTK;Utility;TerminalEmulator;\nStartupNotify=true\nX-Ubuntu-Gettext-Domain=terminator' > /root/Desktop/terminator.desktop && \
+    chmod +x /root/Desktop/terminator.desktop
+
+WORKDIR /root/src/PX4-Autopilot
+
+# Create startup script
+COPY scripts/startup.sh /root/
+RUN chmod +x /root/startup.sh
+
+CMD ["/root/startup.sh"]
+
