@@ -58,7 +58,9 @@ COPY index.html /opt/noVNC/index.html
 RUN mkdir -p /root/.vnc /root/.config/terminator && \
     chmod +x /root/.vnc/xstartup && \
     echo "#!/bin/bash\nxsetroot -solid grey\n/usr/bin/lxsession -s Lubuntu &" > /root/.vnc/xstartup && \
-    chmod +x /root/.vnc/xstartup
+    chmod +x /root/.vnc/xstartup && \
+    echo "liftoff" | /opt/TurboVNC/bin/vncpasswd -f > /root/.vnc/passwd && \
+    chmod 600 /root/.vnc/passwd
 
 # Create desktop shortcuts
 RUN mkdir -p /root/Desktop
@@ -79,4 +81,3 @@ WORKDIR /root
 
 # Start services using supervisor
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
-

@@ -110,4 +110,3 @@ COPY scripts/startup.sh /root/
 RUN chmod +x /root/startup.sh
 
 CMD ["/root/startup.sh"]
-

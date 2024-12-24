@@ -1,0 +1,143 @@
+<?xml version="1.0"?>
+<robot name="stereo_camera" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    
+    <!-- Camera parameters -->
+    <xacro:arg name="baseline" default="0.290"/>
+    <xacro:arg name="focal_length" default="19.71"/>
+    <xacro:arg name="field_of_view" default="25.5"/>
+    
+    <!-- Base link -->
+    <link name="stereo_camera_base">
+        <visual>
+            <geometry>
+                <box size="0.1 $(arg baseline) 0.05"/>
+            </geometry>
+            <material name="black">
+                <color rgba="0 0 0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.1 $(arg baseline) 0.05"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="0.1"/>
+            <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+        </inertial>
+    </link>
+    
+    <!-- Left camera -->
+    <joint name="left_camera_joint" type="fixed">
+        <parent link="stereo_camera_base"/>
+        <child link="left_camera"/>
+        <origin xyz="0 ${$(arg baseline)/2} 0" rpy="0 0 0"/>
+    </joint>
+    
+    <link name="left_camera">
+        <visual>
+            <geometry>
+                <box size="0.05 0.05 0.05"/>
+            </geometry>
+            <material name="red">
+                <color rgba="1 0 0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.05 0.05 0.05"/>
+            </geometry>
+        </collision>
+    </link>
+    
+    <!-- Right camera -->
+    <joint name="right_camera_joint" type="fixed">
+        <parent link="stereo_camera_base"/>
+        <child link="right_camera"/>
+        <origin xyz="0 -${$(arg baseline)/2} 0" rpy="0 0 0"/>
+    </joint>
+    
+    <link name="right_camera">
+        <visual>
+            <geometry>
+                <box size="0.05 0.05 0.05"/>
+            </geometry>
+            <material name="green">
+                <color rgba="0 1 0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.05 0.05 0.05"/>
+            </geometry>
+        </collision>
+    </link>
+    
+    <!-- Gazebo plugins for cameras -->
+    <gazebo reference="left_camera">
+        <sensor type="camera" name="left_camera">
+            <update_rate>30.0</update_rate>
+            <camera name="left">
+                <horizontal_fov>${$(arg field_of_view) * 3.14159 / 180.0}</horizontal_fov>
+                <image>
+                    <width>1280</width>
+                    <height>720</height>
+                    <format>R8G8B8</format>
+                </image>
+                <clip>
+                    <near>0.02</near>
+                    <far>300</far>
+                </clip>
+                <noise>
+                    <type>gaussian</type>
+                    <mean>0.0</mean>
+                    <stddev>0.007</stddev>
+                </noise>
+            </camera>
+            <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+                <alwaysOn>true</alwaysOn>
+                <updateRate>30.0</updateRate>
+                <cameraName>stereo/left</cameraName>
+                <imageTopicName>image_raw</imageTopicName>
+                <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+                <frameName>left_camera</frameName>
+                <hackBaseline>$(arg baseline)</hackBaseline>
+                <focalLength>$(arg focal_length)</focalLength>
+            </plugin>
+        </sensor>
+    </gazebo>
+    
+    <gazebo reference="right_camera">
+        <sensor type="camera" name="right_camera">
+            <update_rate>30.0</update_rate>
+            <camera name="right">
+                <horizontal_fov>${$(arg field_of_view) * 3.14159 / 180.0}</horizontal_fov>
+                <image>
+                    <width>1280</width>
+                    <height>720</height>
+                    <format>R8G8B8</format>
+                </image>
+                <clip>
+                    <near>0.02</near>
+                    <far>300</far>
+                </clip>
+                <noise>
+                    <type>gaussian</type>
+                    <mean>0.0</mean>
+                    <stddev>0.007</stddev>
+                </noise>
+            </camera>
+            <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+                <alwaysOn>true</alwaysOn>
+                <updateRate>30.0</updateRate>
+                <cameraName>stereo/right</cameraName>
+                <imageTopicName>image_raw</imageTopicName>
+                <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+                <frameName>right_camera</frameName>
+                <hackBaseline>$(arg baseline)</hackBaseline>
+                <focalLength>$(arg focal_length)</focalLength>
+            </plugin>
+        </sensor>
+    </gazebo>
+    
+</robot> 
