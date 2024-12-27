@@ -16,4 +16,3 @@ export XDG_MENU_PREFIX="gnome-"
 
 # Make Java applications aware this is a non-reparenting window manager
 export _JAVA_AWT_WM_NONREPARENTING=1
-
