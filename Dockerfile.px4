@@ -1,112 +1,71 @@
-FROM openuav:ros-cuda-11.4.2-base-ubuntu20.04
+FROM nvidia/cudagl:11.4.2-devel-ubuntu20.04
 
-# Install additional dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ninja-build \
-    exiftool \
-    protobuf-compiler \
-    libopencv-dev \
-    python3-setuptools \
-    python3-pip \
-    python3-numpy \
-    python3-empy \
-    python3-toml \
-    python3-packaging \
-    python3-jinja2 \
-    python3-coverage \
-    python3-argcomplete \
-    python3-cerberus \
-    python3-jsonschema \
-    python3-mock \
-    python3-nose \
-    python3-pytest \
-    python3-pytest-cov \
-    python3-requests \
-    python3-serial \
-    python3-six \
-    python3-wheel \
-    python3-yaml \
-    gstreamer1.0-plugins-base \
-    gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad \
-    gstreamer1.0-plugins-ugly \
-    libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev \
-    libgstreamer-plugins-good1.0-dev \
-    lubuntu-desktop \
-    terminator \
-    wget \
+ARG SOURCEFORGE=https://sourceforge.net/projects
+ARG TURBOVNC_VERSION=3.0.3
+ARG VIRTUALGL_VERSION=3.1
+ARG LIBJPEG_VERSION=3.0.0
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV NVIDIA_VISIBLE_DEVICES=1
+ENV NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute
+ENV PULSE_SERVER=unix:/tmp/pulse/native
+ENV DISPLAY=:1
+ENV VGL_DISPLAY=egl
+
+# Install system dependencies
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    curl wget git build-essential ca-certificates \
+    gnupg2 apt-transport-https software-properties-common \
+    python3-pip ipython3 vim less lsof net-tools git htop gedit gedit-plugins \
+    mesa-utils libgl1-mesa-glx libglu1-mesa xauth x11-utils xorg \
+    libxv1 libxrender1 libxext6 libx11-6 \
+    gnome-session gnome-terminal gnome-panel metacity \
+    python3-websockify novnc \
+    libegl1-mesa libglu1-mesa-dev freeglut3-dev mesa-common-dev \
+    tzdata \
+    && ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime \
+    && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure -f noninteractive tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Install TurboVNC and VirtualGL
 RUN wget https://sourceforge.net/projects/turbovnc/files/3.0.3/turbovnc_3.0.3_amd64.deb && \
     wget https://sourceforge.net/projects/virtualgl/files/3.1/virtualgl_3.1_amd64.deb && \
-    apt-get update && \
-    apt-get install -y ./turbovnc_3.0.3_amd64.deb ./virtualgl_3.1_amd64.deb && \
-    rm turbovnc_3.0.3_amd64.deb virtualgl_3.1_amd64.deb && \
-    rm -rf /var/lib/apt/lists/*
+    dpkg -i turbovnc_3.0.3_amd64.deb virtualgl_3.1_amd64.deb && \
+    rm turbovnc_3.0.3_amd64.deb virtualgl_3.1_amd64.deb
 
-# Install noVNC
-RUN git clone https://github.com/novnc/noVNC.git /opt/novnc && \
-    git clone https://github.com/novnc/websockify /opt/novnc/utils/websockify && \
-    ln -s /opt/novnc/vnc.html /opt/novnc/index.html
+# Install ROS Foxy
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
+    DEBIAN_FRONTEND=noninteractive apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ros-foxy-desktop \
+    ros-foxy-gazebo-ros-pkgs \
+    ros-foxy-gazebo-ros2-control \
+    python3-rosdep \
+    python3-colcon-common-extensions \
+    && rm -rf /var/lib/apt/lists/* \
+    && rosdep init \
+    && rosdep update
 
-# Install Python packages
-RUN pip3 install --no-cache-dir \
-    kconfiglib \
-    jsonschema \
-    numpy \
-    toml \
-    pyros-genmsg \
-    packaging \
-    jinja2 \
-    cerberus \
-    pyserial \
-    pyulog \
-    numpy \
-    coverage \
-    mock \
-    nose \
-    pytest \
-    pytest-cov \
-    requests \
-    six \
-    wheel \
-    pyyaml \
-    future
+ENV PATH ${PATH}:/opt/VirtualGL/bin:/root/miniconda3/bin
 
-# Clone and build PX4
-RUN mkdir -p /root/src && \
-    cd /root/src && \
-    git clone --recursive https://github.com/PX4/PX4-Autopilot.git && \
-    cd PX4-Autopilot && \
-    git checkout v1.13.3 && \
-    git submodule update --init --recursive && \
-    make px4_sitl_default gazebo
+# Copy configuration files
+COPY xorg.conf /etc/X11/xorg.conf
+COPY terminator.desktop /root/Desktop/
+COPY terminator_config /root/.config/terminator/config
+COPY xstartup.turbovnc /root/.vnc/xstartup
+COPY start_desktop.sh /usr/local/bin/start_desktop.sh
 
-# Set environment variables
-ENV PX4_HOME_LAT=47.641468
-ENV PX4_HOME_LON=-122.140165
-ENV PX4_HOME_ALT=0.0
+# Setup VNC and desktop configuration
+RUN mkdir -p /root/.vnc /root/.config/terminator && \
+    chmod +x /root/.vnc/xstartup && \
+    echo "liftoff" | /opt/TurboVNC/bin/vncpasswd -f > /root/.vnc/passwd && \
+    chmod 600 /root/.vnc/passwd && \
+    chmod +x /root/Desktop/*.desktop && \
+    chmod +x /usr/local/bin/start_desktop.sh
 
-# Set up VNC configuration
-RUN mkdir -p /root/.vnc && \
-    echo '#!/bin/bash\nxrdb $HOME/.Xresources\nlxqt-session &' > /root/.vnc/xstartup && \
-    chmod +x /root/.vnc/xstartup
+EXPOSE 5901 6080
+ENV DISPLAY :1
 
-# Create launch script
-COPY scripts/launch_px4_sitl.sh /root/
-RUN chmod +x /root/launch_px4_sitl.sh
-
-# Create desktop launcher for Terminator
-RUN mkdir -p /root/Desktop && \
-    echo '[Desktop Entry]\nVersion=1.0\nType=Application\nName=Terminator\nComment=Multiple terminals in one window\nExec=terminator\nIcon=terminator\nCategories=GNOME;GTK;Utility;TerminalEmulator;\nStartupNotify=true\nX-Ubuntu-Gettext-Domain=terminator' > /root/Desktop/terminator.desktop && \
-    chmod +x /root/Desktop/terminator.desktop
-
-WORKDIR /root/src/PX4-Autopilot
-
-# Create startup script
-COPY scripts/startup.sh /root/
-RUN chmod +x /root/startup.sh
-
-CMD ["/root/startup.sh"]
+ENTRYPOINT ["/usr/local/bin/start_desktop.sh"]

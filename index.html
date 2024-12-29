@@ -1,12 +1,16 @@
+<!DOCTYPE html>
 <html>
-  <head>
-    <title>Workspace Desktop Redirect</title>
-    <script language="javascript" type="text/javascript">
-     var url = '//' + document.location.hostname + ':' + document.location.port + '/vnc.html?resize=remote&reconnect=1&autoconnect=1';
-     window.location.assign(url);
+<head>
+    <title>OpenUAV VNC</title>
+    <script>
+        window.location.href = "vnc.html?autoconnect=true&resize=scale&quality=9&compression=0&host=" + window.location.hostname + "&port=" + window.location.port;
     </script>
-  </head>
-  <body>
-    If your browser doesn't automatically go there within a few seconds, you may want to go to <a href=url>the destination</a> manually.
-  </body>
+</head>
+<body>
+    <h1>Connecting to VNC session...</h1>
+    <p>If you are not redirected automatically, click <a id="vnclink" href="#">here</a>.</p>
+    <script>
+        document.getElementById('vnclink').href = window.location.href + "vnc.html?autoconnect=true&resize=scale&quality=9&compression=0&host=" + window.location.hostname + "&port=" + window.location.port;
+    </script>
+</body>
 </html>
