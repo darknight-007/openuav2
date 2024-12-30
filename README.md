@@ -22,7 +22,7 @@ This repository contains a Docker-based development environment for OpenUAV, int
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/openuav2.git
+git clone https://github.com/darknight-007/openuav2
 cd openuav2
 ```
 
