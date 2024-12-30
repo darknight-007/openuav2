@@ -17,10 +17,11 @@ ENV VGL_DISPLAY=egl
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     curl wget git build-essential ca-certificates \
     gnupg2 apt-transport-https software-properties-common \
-    python3-pip ipython3 vim less lsof net-tools git htop gedit gedit-plugins \
+    python3-pip ipython3 vim less lsof net-tools git htop \
     mesa-utils libgl1-mesa-glx libglu1-mesa xauth x11-utils xorg \
     libxv1 libxrender1 libxext6 libx11-6 \
-    gnome-session gnome-terminal gnome-panel metacity \
+    xfce4 xfce4-terminal xfce4-goodies \
+    firefox dbus-x11 \
     python3-websockify novnc \
     libegl1-mesa libglu1-mesa-dev freeglut3-dev mesa-common-dev \
     tzdata \
@@ -55,15 +56,13 @@ COPY xorg.conf /etc/X11/xorg.conf
 COPY terminator.desktop /root/Desktop/
 COPY terminator_config /root/.config/terminator/config
 COPY xstartup.turbovnc /root/.vnc/xstartup
-COPY start_desktop.sh /usr/local/bin/start_desktop.sh
-
-# Setup VNC and desktop configuration
+COPY start_desktop.sh /usr/local/bin/
 RUN mkdir -p /root/.vnc /root/.config/terminator && \
     chmod +x /root/.vnc/xstartup && \
+    chmod +x /usr/local/bin/start_desktop.sh && \
     echo "liftoff" | /opt/TurboVNC/bin/vncpasswd -f > /root/.vnc/passwd && \
     chmod 600 /root/.vnc/passwd && \
-    chmod +x /root/Desktop/*.desktop && \
-    chmod +x /usr/local/bin/start_desktop.sh
+    chmod +x /root/Desktop/*.desktop
 
 EXPOSE 5901 6080
 ENV DISPLAY :1

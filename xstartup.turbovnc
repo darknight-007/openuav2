@@ -4,14 +4,17 @@
 xrdb $HOME/.Xresources
 xsetroot -solid grey
 
-# Start window manager
-metacity &
+# Clean up any existing D-Bus session
+pkill -f dbus-daemon || true
+unset DBUS_SESSION_BUS_ADDRESS
+unset SESSION_MANAGER
 
-# Start GNOME Panel
-gnome-panel &
+# Start a single D-Bus instance
+eval $(dbus-launch --sh-syntax)
+export DBUS_SESSION_BUS_ADDRESS
 
-# Start terminal
-gnome-terminal &
+# Start XFCE with the existing D-Bus session
+startxfce4 &
 
 # Keep the script running
 tail -f /dev/null

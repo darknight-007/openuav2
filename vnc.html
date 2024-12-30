@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>noVNC</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="app/styles/base.css">
+    <script src="core/util/events.js"></script>
+    <script src="core/util/logging.js"></script>
+    <script src="core/util/browser.js"></script>
+    <script src="core/base64.js"></script>
+    <script src="core/websock.js"></script>
+    <script src="core/des.js"></script>
+    <script src="core/input/keysymdef.js"></script>
+    <script src="core/input/xtscancodes.js"></script>
+    <script src="core/input/util.js"></script>
+    <script src="core/input/keyboard.js"></script>
+    <script src="core/input/mouse.js"></script>
+    <script src="core/display.js"></script>
+    <script src="core/inflator.js"></script>
+    <script src="core/rfb.js"></script>
+    <script src="app/webutil.js"></script>
+    <script>
+        window.onload = function() {
+            var rfb;
+            var host = WebUtil.getConfigVar('host', window.location.hostname);
+            var port = WebUtil.getConfigVar('port', window.location.port);
+            var password = WebUtil.getConfigVar('password', '');
+            
+            rfb = new RFB(document.getElementById('screen'), 
+                         host + ':' + port,
+                         { credentials: { password: password } });
+            
+            rfb.addEventListener("connect",  function() { console.log("Connected"); });
+            rfb.addEventListener("disconnect", function() { console.log("Disconnected"); });
+        };
+    </script>
+</head>
+<body>
+    <div id="screen"></div>
+</body>
+</html> 

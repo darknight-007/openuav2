@@ -28,16 +28,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     chmod u+x Miniconda3-latest-Linux-x86_64.sh && \
     ./Miniconda3-latest-Linux-x86_64.sh -b
 
-# Install noVNC with latest version from git
-RUN git clone https://github.com/novnc/noVNC.git /opt/noVNC && \
-    git clone https://github.com/novnc/websockify.git /opt/noVNC/utils/websockify && \
-    ln -s /opt/noVNC/vnc.html /opt/noVNC/index.html && \
-    chmod -R a+w /opt/noVNC
+# Install noVNC from package manager
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    python3-websockify novnc && \
+    rm -rf /var/lib/apt/lists/*
 
 ENV PATH ${PATH}:/opt/VirtualGL/bin:/root/miniconda3/bin
 
 COPY xorg.conf /etc/X11/xorg.conf
-COPY index.html /opt/noVNC/index.html
 
 # Install Chrome and VS Code
 RUN mkdir -p /root/Desktop && \
@@ -90,8 +89,8 @@ COPY ./terminator_config /root/.config/terminator/config
 COPY ./self.pem /root/self.pem
 COPY ./xstartup.turbovnc /root/.vnc/xstartup
 COPY ./chrome.desktop /root/Desktop/
-RUN chmod +x /root/.vnc/xstartup
-COPY start_desktop.sh /usr/local/bin/start_desktop.sh
-RUN chmod +x /usr/local/bin/start_desktop.sh
+COPY start_desktop.sh /usr/local/bin/
+RUN chmod +x /root/.vnc/xstartup && \
+    chmod +x /usr/local/bin/start_desktop.sh
 
-CMD ["/usr/local/bin/start_desktop.sh"]
+ENTRYPOINT ["/usr/local/bin/start_desktop.sh"]
