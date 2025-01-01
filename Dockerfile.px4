@@ -112,7 +112,7 @@ RUN echo "source /opt/ros/foxy/setup.bash" >> /root/.bashrc && \
     echo "export PX4_HOME_LON=-79.9428" >> /root/.bashrc && \
     echo "export PX4_HOME_ALT=0.0" >> /root/.bashrc
 
-# Install NVIDIA and X11 dependencies
+# Install XFCE and desktop environment dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     xorg \
     xserver-xorg \
@@ -124,6 +124,12 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     xfce4 \
     xfce4-terminal \
     xfce4-goodies \
+    xfce4-panel \
+    xfce4-session \
+    xfce4-settings \
+    xfdesktop4 \
+    xfwm4 \
+    thunar \
     dbus \
     dbus-x11 \
     x11vnc \
