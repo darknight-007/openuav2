@@ -1,130 +1,220 @@
-# OpenUAV with PX4 SITL and ROS 2
+# OpenUAV2 Container Architecture
 
-This repository contains a Docker-based development environment for OpenUAV, integrating PX4 SITL with ROS 2 Foxy and GPU acceleration support.
+This repository contains the containerized environment for OpenUAV simulations with GPU acceleration and web-based access.
 
-## Features
+## Display Stack Architecture
 
-- ROS 2 Foxy with Gazebo integration
-- PX4 SITL (Software In The Loop) simulation
-- NVIDIA GPU acceleration support
-- Remote desktop access via VNC/noVNC
-- TurboVNC and VirtualGL for hardware-accelerated 3D graphics
-- GNOME desktop environment
+The OpenUAV container uses a sophisticated display stack to provide GPU-accelerated 3D graphics through a web browser. Here's how each component works together:
 
-## Prerequisites
+```
+┌─────────────┐     ┌──────────┐     ┌───────────┐     ┌──────────┐     ┌───────┐     ┌───────┐     ┌──────────┐
+│  NVIDIA GPU │ ──► │ X Server │ ──► │ VirtualGL │ ──► │ TurboVNC │ ──► │ noVNC │ ──► │ Nginx │ ──► │ Browser  │
+└─────────────┘     └──────────┘     └───────────┘     └──────────┘     └───────┘     └───────┘     └──────────┘
+    OpenGL          Display :N        3D Redirect       VNC Server        WebSocket      Reverse       HTML5
+    Rendering       xorg.conf         vglrun            Port 590N         Port 6080      Proxy         Client
+```
 
+### Component Breakdown
+
+1. **GPU Layer**
+   - Hardware: NVIDIA GPU
+   - Access: `/dev/dri/card0`
+   - Purpose: Provides hardware acceleration for 3D rendering
+   - Container Access: Via NVIDIA runtime and device mounts
+   - Requirements: NVIDIA driver 470+ and CUDA 11.4+
+   - Environment Variables:
+     ```bash
+     NVIDIA_VISIBLE_DEVICES=all
+     NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute
+     ```
+
+2. **X Server Layer**
+   - Software: Xorg
+   - Configuration: `/etc/X11/xorg.conf`
+   - Display: Unique numbers (`:1`, `:2`, etc.)
+   - Driver: `modesetting`
+   - Purpose: Handles display management and input
+   - Features: Creates virtual framebuffer for display output
+   - Key Files:
+     ```
+     /tmp/openuav/xorg/xorg.conf.N  # Display config
+     /tmp/openuav/displays/N        # Display lock files
+     ```
+
+3. **VirtualGL Layer**
+   - Purpose: OpenGL interception and redirection
+   - Configuration: `VGL_DISPLAY=/dev/dri/card0`
+   - Usage: `vglrun` command prefix
+   - Function: Bridges GPU acceleration with virtual display
+   - Features: Separates 3D (GPU) and 2D (virtual) rendering
+   - Version: 3.1
+   - Key Components:
+     ```
+     libvglfaker.so  # OpenGL interception
+     vglserver_config # Server configuration
+     vglconnect      # Client connection
+     ```
+
+4. **TurboVNC Layer**
+   - Purpose: Display compression and remote access
+   - Ports: 5901, 5902, etc. (unique per container)
+   - Features:
+     - Efficient display compression
+     - Network optimization
+     - Multi-user support
+   - Integration: Works with both X server and VNC protocols
+   - Version: 3.0.3
+   - Configuration:
+     ```bash
+     /root/.vnc/xstartup    # VNC startup script
+     /root/.vnc/config      # VNC configuration
+     ```
+
+5. **noVNC Layer**
+   - Purpose: Web-based VNC client
+   - Port: 6080
+   - Features:
+     - VNC to WebSocket conversion
+     - HTML5-based display
+     - No client installation needed
+   - Access: Direct browser support
+   - Components:
+     ```
+     websockify   # WebSocket proxy
+     web/        # HTML5 client files
+     core/       # JavaScript VNC client
+     ```
+
+6. **Nginx Proxy Layer**
+   - Purpose: Web traffic routing
+   - Features:
+     - SSL/TLS termination
+     - WebSocket support
+     - Subdomain routing
+   - URLs: `digital-twin-xxxxx.deepgis.org`
+   - Configuration:
+     ```nginx
+     location / {
+         proxy_pass http://container_ip:6080;
+         proxy_http_version 1.1;
+         proxy_set_header Upgrade $http_upgrade;
+         proxy_set_header Connection "upgrade";
+     }
+     ```
+
+### Example Flow
+
+When running a 3D application like Gazebo:
+```
+┌──────────┐         ┌─────────┐         ┌────────┐
+│  Gazebo  │ OpenGL  │VirtualGL│  GPU    │  X11   │
+│  Client  │───────►│ Redirect│───────►│ Server │
+└──────────┘         └─────────┘         └────────┘
+                                            │
+┌──────────┐         ┌─────────┐         ┌─┘
+│  Web     │ HTML5   │  noVNC  │   VNC   │
+│ Browser  │◄───────│  Proxy  │◄───────┘
+└──────────┘         └─────────┘
+```
+
+1. Application makes OpenGL calls
+2. VirtualGL intercepts and redirects to GPU
+3. GPU performs 3D rendering
+4. X server captures the rendered output
+5. TurboVNC compresses the display
+6. noVNC converts to WebSocket protocol
+7. Nginx proxies to web browser
+
+## Installation
+
+### Prerequisites
 - Ubuntu 20.04 or later
-- NVIDIA GPU with appropriate drivers installed
-- Docker with NVIDIA container toolkit
-- Docker Compose (optional)
+- NVIDIA GPU with 470+ drivers
+- Docker 20.10+
+- NVIDIA Container Toolkit
 
-## Quick Start
+### Host Setup
+1. Install NVIDIA drivers:
+   ```bash
+   ubuntu-drivers autoinstall
+   ```
 
+2. Install Docker:
+   ```bash
+   curl -fsSL https://get.docker.com -o get-docker.sh
+   sudo sh get-docker.sh
+   ```
+
+3. Install NVIDIA Container Toolkit:
+   ```bash
+   distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+   curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+   curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+   sudo apt-get update
+   sudo apt-get install -y nvidia-docker2
+   ```
+
+### Building the Container
 1. Clone the repository:
-```bash
-git clone https://github.com/darknight-007/openuav2
-cd openuav2
-```
+   ```bash
+   git clone https://github.com/your-org/openuav2.git
+   cd openuav2
+   ```
 
-2. Build the Docker image:
-```bash
-docker build -t openuav:px4-sitl -f Dockerfile.px4 .
-```
+2. Build the image:
+   ```bash
+   docker build -t openuav:px4-sitl .
+   ```
 
-3. Run the container:
-```bash
-docker run -d --name gpu-vnc-test \
-    --privileged \
-    --gpus '"device=1"' \
-    -p 6080:6080 \
-    -p 5901:5901 \
-    -e NVIDIA_VISIBLE_DEVICES=1 \
-    -e NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute \
-    --runtime=nvidia \
-    openuav:px4-sitl
-```
+### Running Containers
+1. Start a container:
+   ```bash
+   bash run_container.sh
+   ```
 
-4. Access the desktop environment:
-   - Via web browser: `http://localhost:6080/vnc.html`
-   - Via VNC client: `localhost:5901`
-
-## Container Details
-
-### Ports
-- 5901: TurboVNC server
-- 6080: noVNC web interface
-
-### Environment Variables
-- `DISPLAY=:1`: X display number
-- `VGL_DISPLAY=egl`: VirtualGL display type
-- `NVIDIA_VISIBLE_DEVICES=1`: GPU device ID
-- `NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute`: Required GPU capabilities
-
-### Installed Software
-- ROS 2 Foxy
-- Gazebo 11
-- PX4 Autopilot
-- TurboVNC 3.0.3
-- VirtualGL 3.1
-- NVIDIA CUDA 11.4.2
-- Python 3 with common development tools
-
-## Development Environment
-
-The container provides a full development environment with:
-- GNOME desktop environment
-- Terminator terminal emulator
-- Common development tools (git, vim, etc.)
-- GPU-accelerated 3D graphics support
-
-## Building from Source
-
-To build the image from source:
-
-1. Ensure you have the NVIDIA Container Toolkit installed:
-```bash
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-```
-
-2. Build the Docker image:
-```bash
-docker build -t openuav:px4-sitl -f Dockerfile.px4 .
-```
+2. Access via web browser:
+   ```
+   https://digital-twin-xxxxx.deepgis.org
+   ```
 
 ## Troubleshooting
 
-1. If the VNC connection fails:
-   - Check if the container is running: `docker ps`
-   - View container logs: `docker logs gpu-vnc-test`
-   - Ensure ports 5901 and 6080 are not in use
+### Display Issues
+1. Check X server logs:
+   ```bash
+   docker exec CONTAINER_ID cat /var/log/Xorg.1.log
+   ```
 
-2. If GPU acceleration is not working:
-   - Verify NVIDIA drivers are installed: `nvidia-smi`
-   - Check NVIDIA Container Toolkit installation
-   - Ensure the container has GPU access
+2. Verify GPU access:
+   ```bash
+   docker exec CONTAINER_ID nvidia-smi
+   ```
 
-3. For desktop environment issues:
-   - Check VNC server logs: `docker exec gpu-vnc-test cat /root/.vnc/*.log`
-   - Verify X server is running: `docker exec gpu-vnc-test ps aux | grep Xvnc`
+3. Test OpenGL:
+   ```bash
+   docker exec CONTAINER_ID vglrun glxinfo
+   ```
+
+### Network Issues
+1. Check VNC server:
+   ```bash
+   docker exec CONTAINER_ID netstat -tulpn | grep 590
+   ```
+
+2. Verify noVNC:
+   ```bash
+   docker exec CONTAINER_ID netstat -tulpn | grep 6080
+   ```
+
+### Common Problems
+1. Black screen: Usually X server or GPU driver issue
+2. No 3D acceleration: Check VirtualGL configuration
+3. Connection refused: Check port mappings and firewall
 
 ## Contributing
-
 1. Fork the repository
 2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
+3. Submit a pull request
 
 ## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- PX4 Development Team
-- ROS 2 Community
-- NVIDIA Container Toolkit Team
-- TurboVNC and VirtualGL Projects 
+MIT License - See LICENSE file 
