@@ -12,9 +12,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     libglib2.0-0 libxext6 libsm6 libxrender1 unzip zip psmisc xz-utils \
     python3-dev libsuitesparse-dev libeigen3-dev libxv1:i386 libglu1-mesa:i386 libsdl1.2-dev doxygen \
     gcc libc6-dev libglu1 libxv1 \
-    lubuntu-desktop xvfb terminator zenity mesa-utils \
+    lubuntu-desktop lubuntu-core lxsession xvfb terminator zenity mesa-utils \
     make cmake python3 x11-xkb-utils xauth xfonts-base xkb-data \
-    libegl1-mesa libegl1-mesa-dev && \
+    libegl1-mesa libegl1-mesa-dev \
+    xorg nvidia-utils-470 nvidia-settings && \
     rm -rf /var/lib/apt/lists/* && \
     cd /tmp && \
     curl -fsSL -O ${SOURCEFORGE}/turbovnc/files/${TURBOVNC_VERSION}/turbovnc_${TURBOVNC_VERSION}_amd64.deb \
@@ -90,6 +91,7 @@ COPY ./self.pem /root/self.pem
 COPY ./xstartup.turbovnc /root/.vnc/xstartup
 COPY ./chrome.desktop /root/Desktop/
 COPY start_desktop.sh /usr/local/bin/
+
 RUN chmod +x /root/.vnc/xstartup && \
     chmod +x /usr/local/bin/start_desktop.sh
 

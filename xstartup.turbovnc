@@ -1,20 +1,3 @@
-#!/bin/bash
-
-# Ensure proper X11 setup
-xrdb $HOME/.Xresources
+#!/bin/sh
 xsetroot -solid grey
-
-# Clean up any existing D-Bus session
-pkill -f dbus-daemon || true
-unset DBUS_SESSION_BUS_ADDRESS
-unset SESSION_MANAGER
-
-# Start a single D-Bus instance
-eval $(dbus-launch --sh-syntax)
-export DBUS_SESSION_BUS_ADDRESS
-
-# Start XFCE with the existing D-Bus session
-startxfce4 &
-
-# Keep the script running
-tail -f /dev/null
+/usr/bin/lxsession -s Lubuntu &
