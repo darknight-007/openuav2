@@ -22,17 +22,19 @@ if ! command -v docker &> /dev/null; then
     sh get-docker.sh
 fi
 
-# Create required directories
-mkdir -p /tmp/openuav/displays
-mkdir -p /tmp/openuav/dbus
-mkdir -p /tmp/.X11-unix
+# Create required directories in user's home
+mkdir -p $HOME/openuav_data/displays
+mkdir -p $HOME/openuav_data/dbus
+mkdir -p $HOME/openuav_data/x11
 
-# Set proper permissions for X11 socket directory
-chmod 1777 /tmp/.X11-unix
+# Set proper permissions
+chmod -R 700 $HOME/openuav_data
 
-# Configure xhost access control
-xhost +local:root || true
-xhost +local:docker || true
+# Configure xhost access
+if [ -n "$DISPLAY" ]; then
+    xhost +local:root || true
+    xhost +local:docker || true
+fi
 
 # Set up DNS for .deepgis.org subdomain resolution
 cat >> /etc/hosts << EOF
@@ -40,16 +42,19 @@ cat >> /etc/hosts << EOF
 127.0.0.1 *.deepgis.org
 EOF
 
-# Create xhost startup script
-cat > /etc/profile.d/xhost-local.sh << 'EOF'
-#!/bin/bash
-if [ -n "$DISPLAY" ]; then
-    xhost +local:root > /dev/null 2>&1
-    xhost +local:docker > /dev/null 2>&1
-fi
+# Create xhost startup script in user's home
+mkdir -p $HOME/.config/autostart
+cat > $HOME/.config/autostart/xhost-setup.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=XHost Setup
+Exec=bash -c 'if [ -n "$DISPLAY" ]; then xhost +local:root; xhost +local:docker; fi'
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
 EOF
 
-chmod +x /etc/profile.d/xhost-local.sh
+chmod +x $HOME/.config/autostart/xhost-setup.desktop
 
 echo "Host setup completed successfully!
 Note: X11 socket directory and xhost access have been configured for container display access." 

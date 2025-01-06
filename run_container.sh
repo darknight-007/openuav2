@@ -1,21 +1,17 @@
 #!/bin/bash
 
-# Find the next available port pair starting from 5901
-find_next_ports() {
-    local vnc_port=5901
-    while nc -z localhost $vnc_port 2>/dev/null; do
-        vnc_port=$((vnc_port + 1))
-    done
-    echo "$vnc_port"
-}
-
 # Find next available display number
 find_next_display() {
     local display=1
-    mkdir -p "/tmp/openuav/displays"
+    local OPENUAV_DIR="$HOME/.openuav"
+    
+    # Create OpenUAV directories if they don't exist
+    mkdir -p "$OPENUAV_DIR"/{displays,x11,dbus,logs}
+    chmod 700 "$OPENUAV_DIR"
+    chmod 700 "$OPENUAV_DIR"/{displays,x11,dbus,logs}
     
     # Clean up stale display files
-    for display_file in /tmp/openuav/displays/*; do
+    for display_file in "$OPENUAV_DIR/displays"/*; do
         if [ -f "$display_file" ]; then
             container_id=$(cat "$display_file")
             if ! docker ps -q -f id="$container_id" > /dev/null 2>&1; then
@@ -25,40 +21,47 @@ find_next_display() {
     done
     
     # Find next available display number
-    while [ -e "/tmp/openuav/displays/${display}" ]; do
+    while [ -e "$OPENUAV_DIR/displays/${display}" ]; do
         display=$((display + 1))
     done
     
     echo "$display"
 }
 
-# Get next available port and display
-vnc_port=$(find_next_ports)
+# Get next available display number
 display_num=$(find_next_display)
 
 # Generate a random ID for the container
 RANDOM_ID=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 12 | head -n 1)
 
+# Get current user's UID and GID
+USER_UID=$(id -u)
+USER_GID=$(id -g)
+
 # Create container-specific directories
-mkdir -p "/tmp/openuav/displays/${display_num}"
-mkdir -p "/tmp/openuav/dbus/${display_num}"
+OPENUAV_DIR="$HOME/.openuav"
+mkdir -p "$OPENUAV_DIR/x11/${display_num}"
+mkdir -p "$OPENUAV_DIR/dbus/${display_num}"
+chmod 700 "$OPENUAV_DIR/x11/${display_num}"
+chmod 700 "$OPENUAV_DIR/dbus/${display_num}"
 
 # Launch the container
-CONTAINER_ID=$(docker run -d \
-    --rm \
+CONTAINER_ID=$(docker run --rm \
     --init \
     --runtime=nvidia \
     --privileged \
     --network dreamslab \
-    -p ${vnc_port}:5901 \
     -e DISPLAY=:${display_num} \
     -e NVIDIA_VISIBLE_DEVICES=1 \
     -e NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute \
     -e VGL_DISPLAY=/dev/dri/card0 \
     -e VNC_DISPLAY=${display_num} \
     -e DBUS_SESSION_BUS_ADDRESS="unix:path=/tmp/dbus-session-${display_num}" \
-    -v "/tmp/openuav/displays/${display_num}:/tmp/.X11-unix" \
-    -v "/tmp/openuav/dbus/${display_num}:/tmp/dbus-session-${display_num}" \
+    -e USER_UID="$USER_UID" \
+    -e USER_GID="$USER_GID" \
+    -v "$OPENUAV_DIR/x11/${display_num}:/tmp/.X11-unix" \
+    -v "$OPENUAV_DIR/dbus/${display_num}:/tmp/dbus-session-${display_num}" \
+    -v "$OPENUAV_DIR/logs:/var/log/openuav" \
     --device=/dev/dri:/dev/dri \
     --name "digital-twin-${RANDOM_ID}" \
     openuav:px4-sitl)
@@ -67,14 +70,15 @@ CONTAINER_ID=$(docker run -d \
 SHORT_ID=${CONTAINER_ID:0:12}
 
 # Record container's display number
-echo "$CONTAINER_ID" > "/tmp/openuav/displays/${display_num}"
+echo "$CONTAINER_ID" > "$OPENUAV_DIR/displays/${display_num}"
+
+# Set proper ownership of the OpenUAV directories
+chown -R $USER_UID:$USER_GID "$OPENUAV_DIR"
 
 # Output container info in JSON format for the portal
 echo "{
     \"container_id\": \"${CONTAINER_ID}\",
     \"short_id\": \"${SHORT_ID}\",
-    \"vnc_port\": ${vnc_port},
     \"display\": ${display_num},
     \"url\": \"https://digital-twin-${RANDOM_ID}.deepgis.org\",
-    \"vnc_url\": \"vnc://digital-twin-${RANDOM_ID}.deepgis.org:${vnc_port}\"
 }" 

@@ -3,10 +3,10 @@
 # Find next available display number
 find_next_display() {
     local display=1
-    mkdir -p "/tmp/openuav/displays"
+    mkdir -p "$HOME/openuav_data/displays"
     
     # Clean up stale display files
-    for display_file in /tmp/openuav/displays/*; do
+    for display_file in $HOME/openuav_data/displays/*; do
         if [ -f "$display_file" ]; then
             container_id=$(cat "$display_file")
             if ! docker ps -q -f id="$container_id" > /dev/null 2>&1; then
@@ -16,7 +16,7 @@ find_next_display() {
     done
     
     # Find next available display number
-    while [ -e "/tmp/openuav/displays/${display}" ]; do
+    while [ -e "$HOME/openuav_data/displays/${display}" ]; do
         display=$((display + 1))
     done
     
@@ -30,8 +30,8 @@ start_digital_twin() {
     local display_num=$(find_next_display)
     
     # Create container-specific directories
-    mkdir -p "/tmp/openuav/displays/${display_num}"
-    mkdir -p "/tmp/openuav/dbus/${display_num}"
+    mkdir -p "$HOME/openuav_data/displays/${display_num}"
+    mkdir -p "$HOME/openuav_data/dbus/${display_num}"
     
     # Launch the container
     CONTAINER_ID=$(docker run -d \
@@ -40,13 +40,13 @@ start_digital_twin() {
         --network dreamslab \
         -e DISPLAY=:${display_num} \
         -e VNC_DISPLAY=${display_num} \
-        -v "/tmp/openuav/displays/${display_num}:/tmp/.X11-unix" \
-        -v "/tmp/openuav/dbus/${display_num}:/tmp/dbus-session-${display_num}" \
+        -v "$HOME/openuav_data/displays/${display_num}:/tmp/.X11-unix" \
+        -v "$HOME/openuav_data/dbus/${display_num}:/tmp/dbus-session-${display_num}" \
         --name "digital-twin-${RANDOM_ID}" \
         "$@")
     
     # Record container's display number
-    echo "$CONTAINER_ID" > "/tmp/openuav/displays/${display_num}"
+    echo "$CONTAINER_ID" > "$HOME/openuav_data/displays/${display_num}"
     
     # Output container info
     echo "{
@@ -65,7 +65,7 @@ stop_digital_twin() {
     fi
     
     # Find and remove display file
-    for display_file in /tmp/openuav/displays/*; do
+    for display_file in $HOME/openuav_data/displays/*; do
         if [ -f "$display_file" ]; then
             if grep -q "$container_id" "$display_file"; then
                 rm -f "$display_file"
