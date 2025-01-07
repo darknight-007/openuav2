@@ -2,128 +2,80 @@
 
 This repository contains the containerized environment for OpenUAV simulations with GPU acceleration and web-based access.
 
-## Display Stack Architecture
+## Container Components
 
-The OpenUAV container uses a sophisticated display stack to provide GPU-accelerated 3D graphics through a web browser. Here's how each component works together:
+The OpenUAV container consists of two main component groups:
+
+### Simulation Components
+- **Gazebo**: 3D robotics simulator
+- **Unity**: 3D visualization engine
+- **ROS**: Robot Operating System framework
+- **PX4**: UAV autopilot software
+- **QGroundControl**: Ground control station
+
+### User-Interactive Components
+- **NoVNC**: Web-based VNC client (Port 40001)
+- **TurboVNC**: High-performance VNC server
+- **SSH/SSHFS**: Secure shell access and filesystem mounting (Port 22)
 
 ```
-┌─────────────┐     ┌──────────┐     ┌───────────┐     ┌──────────┐     ┌───────┐     ┌───────┐     ┌──────────┐
-│  NVIDIA GPU │ ──► │ X Server │ ──► │ VirtualGL │ ──► │ TurboVNC │ ──► │ noVNC │ ──► │ Nginx │ ──► │ Browser  │
-└─────────────┘     └──────────┘     └───────────┘     └──────────┘     └───────┘     └───────┘     └──────────┘
-    OpenGL          Display :N        3D Redirect       VNC Server        WebSocket      Reverse       HTML5
-    Rendering       xorg.conf         vglrun            Port 590N         Port 6080      Proxy         Client
+┌─────────────────────────────────────────────────────────┐
+│                OpenUAV Container                        │
+│  ┌─────────────────────────────────────────────┐       │
+│  │           Simulation Components              │       │
+│  │   ┌────────┐  ┌───────┐  ┌─────┐  ┌────┐   │       │
+│  │   │ Gazebo │  │ Unity │  │ ROS │  │PX4 │   │       │
+│  │   └────────┘  └───────┘  └─────┘  └────┘   │       │
+│  │          ┌─────────────────┐                │       │
+│  │          │ QGroundControl  │                │       │
+│  │          └─────────────────┘                │       │
+│  └─────────────────────────────────────────────┘       │
+│                                                        │
+│  ┌─────────────┐    ┌──────────┐    ┌──────────┐      │
+│  │   NoVNC     │    │ TurboVNC │    │SSH/SSHFS │      │
+│  │  (40001)    │    │          │    │  (22)    │      │
+│  └─────────────┘    └──────────┘    └──────────┘      │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### Component Breakdown
+## Network Architecture
 
-1. **GPU Layer**
-   - Hardware: NVIDIA GPU
-   - Access: `/dev/dri/card0`
-   - Purpose: Provides hardware acceleration for 3D rendering
-   - Container Access: Via NVIDIA runtime and device mounts
-   - Requirements: NVIDIA driver 470+ and CUDA 11.4+
-   - Environment Variables:
-     ```bash
-     NVIDIA_VISIBLE_DEVICES=all
-     NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute
-     ```
+The OpenUAV platform uses Nginx as a reverse proxy to handle both HTTP and SSH connections:
 
-2. **X Server Layer**
-   - Software: Xorg
-   - Configuration: `/etc/X11/xorg.conf`
-   - Display: Unique numbers (`:1`, `:2`, etc.)
-   - Driver: `modesetting`
-   - Purpose: Handles display management and input
-   - Features: Creates virtual framebuffer for display output
-   - Key Files:
-     ```
-     /tmp/openuav/xorg/xorg.conf.N  # Display config
-     /tmp/openuav/displays/N        # Display lock files
-     ```
+### Components
+1. **Nginx Proxy**
+   - HTTP proxy module: Handles web interface access
+   - Stream module: Manages SSH connections
+   - Domain format: cpsvo-<uniqueID>.openuav.us
 
-3. **VirtualGL Layer**
-   - Purpose: OpenGL interception and redirection
-   - Configuration: `VGL_DISPLAY=/dev/dri/card0`
-   - Usage: `vglrun` command prefix
-   - Function: Bridges GPU acceleration with virtual display
-   - Features: Separates 3D (GPU) and 2D (virtual) rendering
-   - Version: 3.1
-   - Key Components:
-     ```
-     libvglfaker.so  # OpenGL interception
-     vglserver_config # Server configuration
-     vglconnect      # Client connection
-     ```
+2. **DNS Resolver**
+   - Resolves container-specific URLs to Docker network IPs
+   - Handles dynamic container addressing
 
-4. **TurboVNC Layer**
-   - Purpose: Display compression and remote access
-   - Ports: 5901, 5902, etc. (unique per container)
-   - Features:
-     - Efficient display compression
-     - Network optimization
-     - Multi-user support
-   - Integration: Works with both X server and VNC protocols
-   - Version: 3.0.3
-   - Configuration:
-     ```bash
-     /root/.vnc/xstartup    # VNC startup script
-     /root/.vnc/config      # VNC configuration
-     ```
+3. **Container Instances**
+   - Multiple containers run in parallel
+   - Each container has:
+     - Web interface (NoVNC)
+     - SSH access
+     - Unity + Gazebo simulation environment
 
-5. **noVNC Layer**
-   - Purpose: Web-based VNC client
-   - Port: 6080
-   - Features:
-     - VNC to WebSocket conversion
-     - HTML5-based display
-     - No client installation needed
-   - Access: Direct browser support
-   - Components:
-     ```
-     websockify   # WebSocket proxy
-     web/        # HTML5 client files
-     core/       # JavaScript VNC client
-     ```
-
-6. **Nginx Proxy Layer**
-   - Purpose: Web traffic routing
-   - Features:
-     - SSL/TLS termination
-     - WebSocket support
-     - Subdomain routing
-   - URLs: `digital-twin-xxxxx.deepgis.org`
-   - Configuration:
-     ```nginx
-     location / {
-         proxy_pass http://container_ip:6080;
-         proxy_http_version 1.1;
-         proxy_set_header Upgrade $http_upgrade;
-         proxy_set_header Connection "upgrade";
-     }
-     ```
-
-### Example Flow
-
-When running a 3D application like Gazebo:
 ```
-┌──────────┐         ┌─────────┐         ┌────────┐
-│  Gazebo  │ OpenGL  │VirtualGL│  GPU    │  X11   │
-│  Client  │───────►│ Redirect│───────►│ Server │
-└──────────┘         └─────────┘         └────────┘
-                                            │
-┌──────────┐         ┌─────────┐         ┌─┘
-│  Web     │ HTML5   │  noVNC  │   VNC   │
-│ Browser  │◄───────│  Proxy  │◄───────┘
-└──────────┘         └─────────┘
+┌─────────────────────────────────────────────────────────┐
+│                     Nginx Proxy                         │
+│  ┌───────────────────┐      ┌────────────────────┐     │
+│  │   HTTP Module     │      │    Stream Module   │     │
+│  └─────────┬─────────┘      └──────────┬─────────┘     │
+└────────────┼──────────────────────────┬┼───────────────┘
+             │                          ││
+┌────────────┼──────────────────────────┼┼───────────────┐
+│            ▼                          ▼▼               │
+│  ┌─────────────────┐      ┌─────────────────┐         │
+│  │  Container 1    │      │  Container 2    │   ...   │
+│  │digital-twin-1   │      │digital-twin-2   │         │
+│  └─────────────────┘      └─────────────────┘         │
+│                Docker Network                          │
+└─────────────────────────────────────────────────────────┘
 ```
-
-1. Application makes OpenGL calls
-2. VirtualGL intercepts and redirects to GPU
-3. GPU performs 3D rendering
-4. X server captures the rendered output
-5. TurboVNC compresses the display
-6. noVNC converts to WebSocket protocol
-7. Nginx proxies to web browser
 
 ## Installation
 
@@ -203,7 +155,7 @@ When running a 3D application like Gazebo:
 
 2. Verify noVNC:
    ```bash
-   docker exec CONTAINER_ID netstat -tulpn | grep 6080
+   docker exec CONTAINER_ID netstat -tulpn | grep 40001
    ```
 
 ### Common Problems
