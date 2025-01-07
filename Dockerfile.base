@@ -1,0 +1,148 @@
+# Use NVIDIA CUDA 11.4.2 base image
+FROM nvidia/cudagl:11.4.2-devel-ubuntu20.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+ENV SOURCEFORGE="https://downloads.sourceforge.net"
+ENV TURBOVNC_VERSION="2.2.7"
+ENV LIBJPEG_VERSION="2.1.4"
+ENV VIRTUALGL_VERSION="2.6.5"
+ENV NOVNC_VERSION="1.4.0"
+ENV WEBSOCKIFY_VERSION="0.11.0"
+
+# Install base packages and locale
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates curl wget apt-utils python3-pip vim less lsof net-tools git htop gedit gedit-plugins \
+    libglib2.0-0 libxext6 libsm6 libxrender1 unzip zip psmisc xz-utils \
+    python3-dev libsuitesparse-dev libeigen3-dev libxv1:i386 libglu1-mesa:i386 libsdl1.2-dev doxygen \
+    gcc libc6-dev libglu1 libxv1 \
+    lubuntu-desktop xvfb terminator zenity mesa-utils \
+    make cmake python3 x11-xkb-utils xauth xfonts-base xkb-data \
+    locales \
+    gnupg2 \
+    lsb-release \
+    python3-setuptools \
+    python3-future \
+    python3-lxml \
+    software-properties-common \
+    sudo \
+    x11-xserver-utils \
+    libgstreamer-plugins-base1.0-dev \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-ugly && \
+    rm -rf /var/lib/apt/lists/* && \
+    locale-gen en_US en_US.UTF-8 && \
+    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+
+# Setup ROS 2 Foxy
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    ros-foxy-desktop \
+    python3-colcon-common-extensions \
+    python3-colcon-core \
+    python3-colcon-ros \
+    python3-osrf-pycommon \
+    ros-foxy-eigen3-cmake-module \
+    ros-foxy-geographic-msgs \
+    ros-foxy-diagnostic-updater \
+    ros-foxy-angles \
+    ros-foxy-tf2-eigen && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip3 install wheel setuptools pyserial empy toml numpy jinja2 pyyaml packaging osrf-pycommon testresources && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    libasio-dev \
+    python3-testresources && \
+    rm -rf /var/lib/apt/lists/*
+
+# Setup ROS 2 environment variables
+ENV PYTHONPATH=/usr/lib/python3/dist-packages:/opt/ros/foxy/lib/python3.8/site-packages
+ENV PATH=/opt/ros/foxy/bin:${PATH}
+ENV LD_LIBRARY_PATH=/opt/ros/foxy/lib:${LD_LIBRARY_PATH}
+ENV ROS_PYTHON_VERSION=3
+
+# Add environment setup to bashrc
+RUN echo "source /opt/ros/foxy/setup.bash" >> /root/.bashrc
+
+# Setup user
+RUN groupadd -r user && \
+    useradd -s /bin/bash --create-home --gid user user && \
+    mkdir -p /etc/sudoers.d && \
+    echo 'user ALL=NOPASSWD: ALL' > /etc/sudoers.d/user && \
+    echo 'xhost +SI:localuser:user > /dev/null' >> ~/.bashrc && \
+    usermod -a -G dialout user && \
+    mkdir -p /home/user/.icons
+
+# Install VNC, VirtualGL, and noVNC
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates curl wget apt-utils python3-pip vim less lsof net-tools git htop gedit gedit-plugins \
+    libglib2.0-0 libxext6 libsm6 libxrender1 unzip zip psmisc xz-utils \
+    python3-dev libsuitesparse-dev libeigen3-dev libxv1:i386 libglu1-mesa:i386 libsdl1.2-dev doxygen \
+    gcc libc6-dev libglu1 libxv1 \
+    lubuntu-desktop xvfb terminator zenity mesa-utils \
+    make cmake python3 x11-xkb-utils xauth xfonts-base xkb-data && \
+    dpkg --add-architecture i386 && \
+    apt-get update && \
+    rm -rf /var/lib/apt/lists/* && \
+    cd /tmp && \
+    wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc_${TURBOVNC_VERSION}_amd64.deb" && \
+    wget -q "https://sourceforge.net/projects/libjpeg-turbo/files/${LIBJPEG_VERSION}/libjpeg-turbo-official_${LIBJPEG_VERSION}_amd64.deb" && \
+    wget -q "https://sourceforge.net/projects/virtualgl/files/${VIRTUALGL_VERSION}/virtualgl_${VIRTUALGL_VERSION}_amd64.deb" && \
+    dpkg -i turbovnc_${TURBOVNC_VERSION}_amd64.deb \
+           libjpeg-turbo-official_${LIBJPEG_VERSION}_amd64.deb \
+           virtualgl_${VIRTUALGL_VERSION}_amd64.deb && \
+    rm -f /tmp/*.deb && \
+    sed -i 's/$host:/unix:/g' /opt/TurboVNC/bin/vncserver && \
+    curl -fsSL https://github.com/novnc/noVNC/archive/v${NOVNC_VERSION}.tar.gz | tar -xzf - -C /opt && \
+    curl -fsSL https://github.com/novnc/websockify/archive/v${WEBSOCKIFY_VERSION}.tar.gz | tar -xzf - -C /opt && \
+    mv /opt/noVNC-${NOVNC_VERSION} /opt/noVNC && \
+    chmod -R a+w /opt/noVNC && \
+    mv /opt/websockify-${WEBSOCKIFY_VERSION} /opt/websockify && \
+    cd /opt/websockify && make && \
+    cd /opt/noVNC/utils && \
+    ln -s /opt/websockify
+
+ENV PATH=/opt/VirtualGL/bin:${PATH}
+
+COPY xorg.conf /etc/X11/xorg.conf
+COPY index.html /opt/noVNC/index.html
+
+# install chrome and pycharm
+RUN mkdir -p /root/Desktop && \
+    mkdir -p /root/.config/terminator && \
+    mkdir -p /root/.vnc && \
+    perl -pi -e 's/^Exec=terminator$/Exec=terminator -e "vglrun bash"/g' /usr/share/applications/terminator.desktop && \
+    wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt update && apt install -y locales sudo ./google-chrome-stable_current_amd64.deb --no-install-recommends && \
+    rm -f ./google-chrome-stable_current_amd64.deb && \
+    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
+    locale-gen && \
+    printf "%s\n" \
+           "export LC_ALL=en_US.UTF-8" \
+           "export LANG=en_US.UTF-8" \
+           "export LANGUAGE=en_US.UTF-8" >> /root/.bashrc && \
+    printf "%s\n" \
+           "alias cp=\"cp -i\"" \
+           "alias mv=\"mv -i\"" \
+           "alias rm=\"rm -i\"" >> /root/.bash_aliases
+
+# Expose whatever port NoVNC will serve from. In our case it will be 40001, see ./start_desktop.sh
+EXPOSE 40001
+ENV DISPLAY :1
+
+COPY terminator.desktop /root/Desktop/
+COPY ./terminator_config /root/.config/terminator/config
+COPY ./self.pem /root/self.pem
+COPY ./xstartup.turbovnc /root/.vnc/xstartup.turbovnc
+COPY ./chrome.desktop /root/Desktop
+RUN chmod a+x /root/.vnc/xstartup.turbovnc
+COPY start_desktop.sh /usr/local/bin/start_desktop.sh
+CMD /usr/local/bin/start_desktop.sh
