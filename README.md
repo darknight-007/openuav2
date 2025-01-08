@@ -163,6 +163,12 @@ The OpenUAV platform uses Nginx as a reverse proxy to handle both HTTP and SSH c
 2. No 3D acceleration: Check VirtualGL configuration
 3. Connection refused: Check port mappings and firewall
 
+### Notes: 
+sudo pkill -f "Xorg :1"
+sudo Xorg :0 -isolateDevice PCI:82:0:0 -config /etc/X11/xorg.conf -noreset vt1
+-e DISPLAY=:1     # For TurboVNC's 2D operations
+-e VGL_DISPLAY=:0 # For GPU-accelerated 3D rendering
+
 ## Contributing
 1. Fork the repository
 2. Create your feature branch

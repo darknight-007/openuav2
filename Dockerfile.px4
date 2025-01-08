@@ -1,14 +1,9 @@
 FROM openuav:ros-cuda-11.4.2-base-ubuntu20.04
 
-# Setup workspace and clone repositories
-RUN mkdir -p /root/src && \
-    cd /root/src && \
-    git clone --recursive https://github.com/PX4/PX4-Autopilot.git && \
-    cd /root/src/PX4-Autopilot && \
-    git reset --hard 0860a61fa666b18b64ac453e744dee81af5834f0 && \
-    git submodule sync --recursive && \
-    git submodule update --init --recursive
+# Set up Gazebo environment
+RUN echo "export GAZEBO_PLUGIN_PATH=${GAZEBO_PLUGIN_PATH}:/root/src/PX4-Autopilot/Tools/sitl_gazebo/build" >> /root/.bashrc && \
+    echo "export GAZEBO_MODEL_PATH=${GAZEBO_MODEL_PATH}:/root/src/PX4-Autopilot/Tools/sitl_gazebo/models" >> /root/.bashrc && \
+    echo "export SITL_GAZEBO_PATH=/root/src/PX4-Autopilot/Tools/sitl_gazebo" >> /root/.bashrc && \
+    echo "export GAZEBO_RESOURCE_PATH=/usr/share/gazebo-11/" >> /root/.bashrc 
 
 WORKDIR /root/
-
-CMD ["/bin/bash"]
