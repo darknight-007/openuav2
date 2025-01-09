@@ -39,7 +39,7 @@ Section "Device"
     Driver         "nvidia"
     VendorName     "NVIDIA Corporation"
     BoardName      "GeForce RTX 2080 Ti Rev. A"
-    BusId          "PCI:82:0:0"
+    BusId          "PCI:130:0:0"
 EndSection
 
 Section "ServerFlags"
